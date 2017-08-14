@@ -1,157 +1,90 @@
-# serverless-chrome
+# serverless-chrome/lambda
 
-Serverless Chrome contains everything you need to get started running headless Chrome on AWS Lambda (possibly Azure and GCP Functions soon).
+Standalone package to run Headless Chrome on AWS Lambda's Node.js (6.10+) runtime.
 
-The aim of this project is to provide the scaffolding for using Headless Chrome during a serverless function invocation. Serverless Chrome takes care of building and bundling the Chrome binaries and making sure Chrome is running when your serverless function executes. In addition, this project also provides a few example services for common patterns (e.g. taking a screenshot of a page, printing to PDF, some scraping, etc.)
-
-Why? Because it's neat. It also opens up interesting possibilities for using the [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/tot/) in serverless architectures and doing testing/CI, web-scraping, pre-rendering, etc.
-
-
-[![CircleCI](https://img.shields.io/circleci/project/github/adieuadieu/serverless-chrome/master.svg?style=flat-square)](https://circleci.com/gh/adieuadieu/serverless-chrome)
-[![Coveralls](https://img.shields.io/coveralls/adieuadieu/serverless-chrome/master.svg?style=flat-square)](https://coveralls.io/github/adieuadieu/serverless-chrome)
-[![Codacy grade](https://img.shields.io/codacy/grade/cd743cc370104d49a508cc4b7689c1aa.svg?style=flat-square)](https://www.codacy.com/app/adieuadieu/serverless-chrome)
-[![David](https://img.shields.io/david/adieuadieu/serverless-chrome.svg?style=flat-square)]()
-[![David](https://img.shields.io/david/dev/adieuadieu/serverless-chrome.svg?style=flat-square)]()
-[![GitHub release](https://img.shields.io/github/release/adieuadieu/serverless-chrome.svg?style=flat-square)](https://github.com/adieuadieu/serverless-chrome)
+[![npm](https://img.shields.io/npm/v/@serverless-chrome/lambda.svg?style=flat-square)](https://www.npmjs.com/package/@serverless-chrome/lambda)
 
 
 ## Contents
-1. [The Project](#the-project)
-1. [Quick Start](#quick-start)
-1. [Examples](#examples)
-1. [Chrome Version](#chrome-version)
+1. [Installation](#installation)
+1. [Setup](#setup)
 1. [Testing](#testing)
+1. [Configuration and Deployment](#configuration-and-deployment)
 1. [Known Issues / Limitations](#known-issues-limitations)
 1. [Roadmap](#roadmap)
-1. [Projects & Companies using serverless-chrome](#projects--companies-using-serverless-chrome)
-1. [Change log](#change-log)
-1. [Prior Art](#prior-art)
+1. [Troubleshooting](#troubleshooting)
 
 
-## The Project
-
-This project contains:
-
-- **[@serverless-chrome/lambda](https://github.com/adieuadieu/serverless-chrome/tree/master/packages/lambda)** Node package<br/>
-  A standalone module for AWS Lambda which bundles and launches Headless Chrome with support for local development. For use with—but not limited to—tools like [Apex](https://github.com/apex/apex), or [Claudia.js](https://github.com/claudiajs/claudia).
-- **[serverless-plugin-chrome](https://github.com/adieuadieu/serverless-chrome/tree/master/packages/serverless-plugin)** Node package<br/>
-  A plugin for [Serverless-framework](https://serverless.com/) services which takes care of everything for you. You just write the code to drive Chrome.
-- **[Example functions](https://github.com/adieuadieu/serverless-chrome/tree/master/examples)**
-  - [Serverless-framework](https://serverless.com/) AWS Lambda Node.js functions using `serverless-plugin-chrome`
-- **Docker Stuff**<br/>
-  For building Headless Chrome
-
-
-## Quick Start
-
-Using AWS Lambda, the quickest way to get started is with the [Serverless-framework](https://serverless.com/) CLI.
-
-First, install `serverless` globally:
+## Installation
+Install with yarn:
 
 ```bash
-npm install serverless -g
+yarn add @serverless-chrome/lambda
 ```
 
-Then pull down the example service:
+Install with npm:
 
 ```bash
-serverless install -u https://github.com/adieuadieu/serverless-chrome/tree/master/examples/serverless-framework/aws
+npm install --save @serverless-chrome/lambda
 ```
 
-Then, you must configure your AWS credentials either by defining `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environmental variables, or using an AWS profile. You can read more about this on the [Serverless Credentials Guide](https://serverless.com/framework/docs/providers/aws/guide/credentials/).
-
-In short, either:
+If you wish to develop locally, you also need to install `chrome-launcher`:
 
 ```bash
-export AWS_PROFILE=<your-profile-name>
+npm install --save-dev chrome-launcher
 ```
 
-or
+## Setup
 
-```bash
-export AWS_ACCESS_KEY_ID=<your-key-here>
-export AWS_SECRET_ACCESS_KEY=<your-secret-key-here>
+Use in your AWS Lambda function. Requires Node 6.10.
+
+
+todo: check that this code works:
+```js
+const launchChrome = require('@serverless-chrome/lambda')
+const CDP = require('chrome-remote-interface')
+
+module.exports.handler = function handler (event, context, callback) {
+  launchChrome({
+    flags: ['--window-size=1280x1696', '--hide-scrollbars']
+  })
+  .then((chrome) => {
+    // Chrome is now running on localhost:9222
+
+    CDP.Version()
+      .then((versionInfo) => {
+        callback(null, {
+          versionInfo,
+        })
+      })
+      .catch((error) => {
+        callback(error)
+      })
+  })
+  .catch((error) => {
+    // Chrome didn't launch correctly
+
+    callback(error)
+  })
+}
 ```
 
-Then, to deploy the service and all of its functions:
+## Local Development
 
-```bash
-serverless deploy
+Local development is supported. In a non-lambda environment, the package will use chrome-launcher to launch a locally installed Chrome. You can also pass your own `chromePath`:
+
+```js
+launchChrome({ chromePath: '/my/local/chrome/path' })
 ```
 
-Further details are available in the [Serverless Lambda example](https://github.com/adieuadieu/serverless-chrome/tree/master/examples/serverless-framework/aws).
+**Command line flags (or "switches")**
 
+The behavior of Chrome does vary between platforms. It may be necessary to experiment with flags to get the results you desire. On Lambda [default flags](https://github.com/adieuadieu/serverless-chrome/blob/develop/packages/lambda/src/flags.js) are used, but in development no default flags are used.
 
-## Examples
+The package has zero external dependencies required for inclusion in your Lambda function's package.
 
-A collection of example functions for different providers and frameworks.
+## Framework Plugins
 
-### Serverless-framework
+There are plugins which bundle this package for easy deployment available for the following "serverless" frameworks:
 
-- [Serverless-framework](https://github.com/adieuadieu/serverless-chrome/tree/master/examples/serverless-framework/aws)
-  Some simple functions for the [Serverless-framework](https://serverless.com/) on AWS Lambda. It includes the following example functions:
-
-  - Print to PDF
-  - Capture Screenshot
-  - Page-load Request Logger
-
-
-## Chrome Version
-
-The current Chrome build is:
-
-- **Browser**: HeadlessChrome/61.0.3135.0
-- **Protocol-Version**: 1.2
-- **User-Agent**: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/61.0.3135.0 Safari/537.36
-- **V8-Version**: 6.1.201
-- **WebKit-Version**: 537.36 (@c671506faf285787f1c0377f90c8129a1a40a347)
-
-
-## Testing
-
-Test with `yarn test` or just `yarn ava` to skip the linter.
-
-
-## Known Issues / Limitations
-
-1. Hack to Chrome code to disable `/dev/shm`. Details [here](https://medium.com/@marco.luethy/running-headless-chrome-on-aws-lambda-fa82ad33a9eb).
-1. `/tmp` size on Lambda is only about 500MB.
-1. For steady/predictable loads, it might not be the most cost efficient to do this on Lambda vs. EC2
-
-
-## Roadmap
-
-*1.1*
-
-1. Support for Google Cloud Functions
-1. Example for Apex
-1. Example for Claudia.js
-
-*1.2*
-
-1. DOM manipulation and scraping example handler
-
-*Future*
-
-1. Support for Azure Functions (Once Headless Chrome supports Windows)
-
-
-
-## Projects & Companies using serverless-chrome
-
-Tell us about your project on the [Wiki](https://github.com/adieuadieu/serverless-chrome/wiki/Projects-&amp;-Companies-Using-serverless-chrome)!
-
-
-## Change log
-
-See the [CHANGELOG](https://github.com/adieuadieu/serverless-chrome/blob/master/CHANGELOG.md)
-
-
-## Prior Art
-
-This project was inspired in various ways by the following projects:
-
-- [PhantomJS](http://phantomjs.org/)
-- [wkhtmltopdf](https://github.com/wkhtmltopdf/wkhtmltopdf)
-- [node-webkitgtk](https://github.com/kapouer/node-webkitgtk)
-- [electron-pdf](https://github.com/Janpot/electron-pdf)
+- [serverless-plugin-chrome](https://github.com/adieuadieu/serverless-chrome/tree/master/packages/serverless-plugin)
